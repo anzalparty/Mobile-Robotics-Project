@@ -1,0 +1,131 @@
+clc
+clear
+close all
+
+sigx2=0.01;
+sigy2=0.01;
+sigphi2=0.0001;
+sigv2=0.1;
+sigw2=0.1;
+sigmag2=0.01;
+
+T=1;
+b=1;
+vk=0;Vk=[];
+xk=0;Xk=[];
+yk=0;Yk=[];
+Xest=[];
+Yest=[];
+xest=0;
+yest=0;
+Phiest=[];
+phiest=0;
+
+phik=0;Phik=[];
+wk=0;Wk=[];
+zk=zeros(3,1);Zk=[];
+
+True_pos=[];
+Gk=[];
+Phat=eye(2)*10;
+zhat=zeros(2,1);
+Zhat =[];
+H =T*[1 b/2; 1 -b/2];
+%Discrete system parameters
+A= [0 0 1;0 0 0;0 0 0];
+B=[0 0;1 0;0 1];
+Bt=B.';          %Transpose of matrix B
+syms t
+F=expm(A*t)      %exponent of matrix
+
+ 
+Ft=F.';
+cov=[sigv2 0 ;0 sigw2;];      %covarience of noise
+k=F*B*cov*Bt*Ft;
+Q=double(int(k,0,T));
+
+U=chol(Q)';
+F = double(subs(F,t,T));
+R=[sigmag2 0;0 sigmag2/10];
+V=chol(R)';
+
+Aest= [0 0;0 0];
+Best=[1 0;0 1];
+Bestt=Best.';          %Transpose of matrix B
+
+Fest=expm(Aest*t)      %exponent of matrix
+
+ 
+Festt=Fest.';
+cov=[sigv2 0 ;0 sigw2;];      %covarience of noise
+kest=Fest*Best*cov*Bestt*Festt;
+Qest=double(int(kest,0,T));
+Fest =double(Fest);
+for k=1:100
+    % Drive / system model
+    nx=randn*sqrt(sigx2);
+    ny=randn*sqrt(sigy2);
+
+    nz = U*randn(3,1);
+    zk = F*zk + nz;
+    phik=zk(1);
+    vk=zk(2);
+    wk=zk(3);
+    xk=xk+T*vk*cos(phik+T*wk/2)+nx;
+    yk=yk+T*vk*sin(phik+T*wk/2)+ny;
+    %saving values
+    Xk=[Xk xk];
+    Yk=[Yk yk];
+    Phik=[Phik phik];
+    Vk=[Vk vk];
+    Wk=[Wk wk];
+    % measurement model
+    ng = V*randn(2,1);
+    gk = H*zk(2:3) + ng;
+    Gk=[Gk gk];
+
+    % Kalman Prediction
+    ztemp = Fest*zhat;
+    Ptemp=Fest*Phat*Fest'+Qest;
+    gtemp = H*ztemp;
+
+    S=H*Ptemp*H'+R;
+    K=Ptemp*H'/S;
+
+    zhat=ztemp+K*(gk-gtemp);
+    Phat=Ptemp-K*H*Ptemp;
+    Zhat = [Zhat zhat];
+    
+    vest = zhat(1);
+    west = zhat(2);
+    phiest=phiest+T*west;
+    xest=xest+T*vest*cos(phiest+T*west/2);
+    yest=yest+T*vest*sin(phiest+T*west/2);
+    
+    Xest=[Xest xest];
+    Yest=[Yest yest];
+    Phiest=[Phiest phiest];
+
+end
+Vobs = (Gk(1,:)+Gk(2,:))/2/T;
+Wobs = (Gk(1,:)-Gk(2,:))/b/T;
+Vest = Zhat(1,:);
+West = Zhat(2,:);
+
+figure; subplot 221
+plot(Vk,'k-'); hold on
+plot(Vobs,'bo','markerfacecolor','b'); hold on
+plot(Vest,'g-','linewidth',2);
+% 
+subplot 222
+plot(Wk,'k-'); hold on
+plot(Wobs,'bo','markerfacecolor','b'); hold on
+plot(West,'g-','linewidth',2);
+% 
+subplot 223
+plot(Xk,Yk,'k-'); hold on
+plot(Xest,Yest,'g-','linewidth',2);
+
+subplot 224
+plot(Phik,'k-'); hold on
+
